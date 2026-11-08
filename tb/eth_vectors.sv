@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 // Ethereum Keccak-256 reference test vectors as a SystemVerilog package.
 //
 // These vectors are well-known fixtures in the Ethereum ecosystem and are

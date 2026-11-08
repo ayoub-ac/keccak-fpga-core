@@ -1,14 +1,13 @@
 # keccak-fpga-core
 
 [![License: GPL-3.0-or-later or commercial](https://img.shields.io/badge/license-GPL--3.0%20%7C%20commercial-blue.svg)](LICENSE.md)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](#verification)
-[![FIPS-202 vectors](https://img.shields.io/badge/FIPS--202-NIST%20vectors-blue.svg)](#verification)
 [![Ethereum Keccak-256](https://img.shields.io/badge/Ethereum-Keccak--256-blueviolet.svg)](#ethereum-keccak-256-vs-nist-sha3-256-the-footgun)
-[![Lint](https://img.shields.io/badge/Verilator%20lint-clean-brightgreen.svg)](#build--test)
+
+> **Status: experimental and unverified.** This core was written with AI assistance and has not been independently verified in simulation regressions, formal proofs or hardware. Claims in this repository about standards compliance, test results, timing and resource use are unverified. It has not been validated under NIST CAVP/CMVP and has not been evaluated for side-channel or fault-injection resistance. Do not use it in production or security-sensitive designs without your own verification. No support or maintenance is provided.
 
 A small, synthesisable Keccak / SHA-3 family IP core in SystemVerilog. One round per cycle, 25-cycle iterative Keccak-f[1600] permutation, single clock domain. Five variants behind a 3-bit mode select: **SHA3-256**, **SHA3-512**, **SHAKE128**, **SHAKE256**, **Ethereum Keccak-256**. Targets iCE40, ECP5, Xilinx 7-series, Cyclone V, and Tang Nano 9K.
 
-The core is a clean implementation of FIPS-202 plus the original Keccak submission, verified end-to-end against NIST FIPS-202 / NIST CAVP test vectors plus a 125-message cross-check across all five modes against Python `hashlib.sha3_*` / `hashlib.shake_*` and `pycryptodome.Crypto.Hash.keccak`. End-to-end verifiable with the open-source Verilator simulator. No FPGA hardware required for the test suite.
+The core implements the FIPS-202 algorithm (not validated) plus the original Keccak submission. NIST FIPS-202 / NIST CAVP test vectors and a 125-message cross-check across all five modes against Python `hashlib.sha3_*` / `hashlib.shake_*` and `pycryptodome.Crypto.Hash.keccak` are included in a Verilator testbench; results not independently confirmed. No FPGA hardware is required to run the test suite.
 
 ## Why this exists
 
@@ -36,7 +35,7 @@ Ethereum Keccak-256("")  = c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad
 
 Why does Ethereum use the older variant? Because Ethereum was specified before FIPS-202 was finalised. The Ethereum yellow paper points at the original Keccak submission, which used the simpler `pad10*1` rule with no domain byte (effectively `0x01` for byte-oriented inputs). FIPS-202 added the `0x06` separator to give SHA3 its own domain. By the time FIPS-202 shipped, the Ethereum genesis block was on chain and the variant could not be changed.
 
-**This core supports both.** Drive `mode_i = 0` for SHA3-256, `mode_i = 4` for Ethereum Keccak-256. The directed test suite includes an explicit cross-check that the two produce different digests (Test 3) so any future regression that swaps the domain byte fails the gate.
+**This core is intended to support both.** Drive `mode_i = 0` for SHA3-256, `mode_i = 4` for Ethereum Keccak-256. The Ethereum mode is intended to match Ethereum `keccak256()`; not independently confirmed. The directed test suite includes an explicit cross-check that the two produce different digests (Test 3), intended to catch a regression that swaps the domain byte; results not independently confirmed.
 
 If your application is the Ethereum world (smart contracts, EVM, EIP-191, EIP-712, Solidity `keccak256()`, web3.js / ethers.js / web3.py): **`mode_i = 4`**. If your application is the FIPS world (TLS 1.3 with SHA3, post-quantum schemes like SLH-DSA / Dilithium / Falcon, NIST SP 800-185 derived functions): **`mode_i = 0`**.
 
@@ -74,7 +73,7 @@ Requires Verilator 5.0+ for simulation. Yosys 0.30+ for the open synth flow. Pyt
     FSM)
 ```
 
-FSM: `IDLE -> ABSORB <-> PERMUTE -> PAD_LAUNCH -> PAD_WAIT -> PERMUTE_END -> DONE -> IDLE`. The Keccak-f[1600] permutation runs 24 rounds in 24 cycles plus a 1-cycle `done` pulse; per rate-block the streaming top adds ~3 cycles of FSM overhead.
+FSM: `IDLE -> ABSORB <-> PERMUTE -> PAD_LAUNCH -> PAD_WAIT -> PERMUTE_END -> DONE -> IDLE`. The Keccak-f[1600] permutation is designed to run 24 rounds in 24 cycles plus a 1-cycle `done` pulse; per rate-block the streaming top is expected to add ~3 cycles of FSM overhead (design intent, unverified).
 
 ## Port table
 
@@ -98,7 +97,7 @@ See [`PORT_DESCRIPTION.md`](PORT_DESCRIPTION.md) for the full streaming protocol
 
 ## Headline numbers
 
-Real numbers from `make synth_report` (Yosys 0.33, full streaming top):
+Unverified estimates attributed to `make synth_report` (Yosys 0.33, full streaming top). They have not been independently reproduced:
 
 | Target           | LUT      | FF      | BRAM | Latency / hash                  | Throughput @ Fmax     |
 |------------------|---------:|--------:|-----:|---------------------------------|-----------------------|
@@ -119,11 +118,11 @@ make synth_report   # cross-toolchain synthesis report
 make regen_vectors  # regenerate tb/random_vectors.h from hashlib + pycryptodome
 ```
 
-A passing run ends with `+PASS all tests passed` and exits 0.
+The harness is written to end a passing run with `+PASS all tests passed` and exit 0. No passing run has been independently confirmed.
 
 ## Verification
 
-Three orthogonal techniques are wired into the testbench:
+Three techniques are wired into the testbench. Test vectors are included; results not independently confirmed.
 
 ### Directed tests (NIST FIPS-202)
 
@@ -147,15 +146,15 @@ Three orthogonal techniques are wired into the testbench:
 
 ### SHA3-256 vs Ethereum-Keccak-256 distinction
 
-A dedicated test verifies that on the empty input, SHA3-256 produces `a7ffc6f8...` and Ethereum Keccak-256 produces `c5d24601...`, and that the two are different. This is the canonical regression-catching check for the domain-byte logic.
+A dedicated test checks that on the empty input, SHA3-256 produces `a7ffc6f8...` and Ethereum Keccak-256 produces `c5d24601...`, and that the two are different. It is intended to catch regressions in the domain-byte logic; results not independently confirmed.
 
 ### Random cross-validation (125 messages)
 
-25 random messages per mode times 5 modes. Lengths drawn from `{0, 1, 32, 71, 72, 135, 136, 137, 167, 168, 169}` plus 14 random lengths in [170, 2000], chosen to land on every rate boundary (SHA3-512 rate = 72, SHA3-256 / SHAKE256 / Keccak-256 rate = 136, SHAKE128 rate = 168). Cross-checked against `hashlib.sha3_*`, `hashlib.shake_*`, and `pycryptodome.Crypto.Hash.keccak`.
+25 random messages per mode times 5 modes. Lengths drawn from `{0, 1, 32, 71, 72, 135, 136, 137, 167, 168, 169}` plus 14 random lengths in [170, 2000], chosen to land on every rate boundary (SHA3-512 rate = 72, SHA3-256 / SHAKE256 / Keccak-256 rate = 136, SHAKE128 rate = 168). Expected digests are generated with `hashlib.sha3_*`, `hashlib.shake_*`, and `pycryptodome.Crypto.Hash.keccak`; results not independently confirmed.
 
 ### SystemVerilog assertions
 
-`tb/keccak_assertions.sv` enforces protocol invariants on every cycle of every test:
+`tb/keccak_assertions.sv` is intended to check protocol invariants on every cycle of every test:
 
 - Each Keccak-f[1600] permutation completes in exactly 25 cycles
 - `digest_o` is stable while `digest_valid_o` is asserted
@@ -164,11 +163,11 @@ A dedicated test verifies that on the empty input, SHA3-256 produces `a7ffc6f8..
 - `pad_block_valid` is a single-cycle pulse (padder emits exactly one block per launch)
 - Rate-buffer fill counter never exceeds the per-mode rate
 
-The assertions compile with both Verilator 5.x (`--assert`) and Vivado xsim. They are stripped on synthesis flows via `` `ifndef SYNTHESIS ``.
+The assertions are intended to compile with both Verilator 5.x (`--assert`) and Vivado xsim (not independently confirmed). They are stripped on synthesis flows via `` `ifndef SYNTHESIS ``.
 
 ### Functional coverage
 
-`tb/keccak_cov.sv` collects ten bins. The simulator prints a coverage summary at end-of-test:
+`tb/keccak_cov.sv` collects ten bins. The simulator prints a coverage summary at end-of-test in this format (illustrative output; results not independently confirmed):
 
 ```
 ---- Functional coverage ----
@@ -177,7 +176,7 @@ The assertions compile with both Verilator 5.x (`--assert`) and Vivado xsim. The
 Coverage: 10/10 bins (100.0%)
 ```
 
-A regression that drops below 100% fails the gate.
+The harness is intended to fail a run that drops below 100%.
 
 ### Synthesis comparison report
 
@@ -185,20 +184,20 @@ A regression that drops below 100% fails the gate.
 
 ## Variants
 
-| Variant                              | Use case                                                                                    | Tier    |
-|--------------------------------------|---------------------------------------------------------------------------------------------|---------|
-| `rtl/keccak_round.sv`                | Combinational theta / rho / pi / chi / iota single-round update                             | GPL     |
-| `rtl/keccak_f1600.sv`                | 24-round iterative Keccak-f[1600] permutation                                                | GPL     |
-| `rtl/keccak_padder.sv`               | FIPS-202 `pad10*1` + domain-byte selector (SHA3 / SHAKE / Ethereum)                          | GPL     |
-| `rtl/keccak_top.sv`                  | Streaming top with 3-bit mode select; supports all 5 variants behind a single port surface  | GPL     |
-| `vhdl_wrapper/keccak_top_vhdl.vhd`   | VHDL-2008 entity wrapping the SV streaming top for VHDL-only designs                         | All     |
+| Variant                              | Use case                                                                                    |
+|--------------------------------------|---------------------------------------------------------------------------------------------|
+| `rtl/keccak_round.sv`                | Combinational theta / rho / pi / chi / iota single-round update                             |
+| `rtl/keccak_f1600.sv`                | 24-round iterative Keccak-f[1600] permutation                                                |
+| `rtl/keccak_padder.sv`               | FIPS-202 `pad10*1` + domain-byte selector (SHA3 / SHAKE / Ethereum)                          |
+| `rtl/keccak_top.sv`                  | Streaming top with 3-bit mode select; intended to support all 5 variants behind a single port surface |
+| `vhdl_wrapper/keccak_top_vhdl.vhd`   | VHDL-2008 entity wrapping the SV streaming top for VHDL-only designs                         |
 
 ## License
 
 Dual-licensed:
 
 - **GPL-3.0-or-later** for open-source projects. If your product links this RTL or its compiled bitstream, your project must also be GPL-3.0+.
-- **Commercial license** for closed-source products. Email the maintainer to discuss tiers and pricing. See [`LICENSE.md`](LICENSE.md) for the legal text and an FAQ.
+- **Commercial license** for closed-source products. Commercial licenses are available on request: open a GitHub issue titled 'Commercial license request'. Do not post confidential details in the issue. Any commercial license is provided as is, without warranty, support or maintenance. This core is unverified (see README). See [`LICENSE.md`](LICENSE.md) for the license text.
 
 If unsure which applies, read `LICENSE.md` or open an issue.
 
@@ -231,7 +230,7 @@ Bug reports and patches welcome. Process:
 1. File an issue first for non-trivial changes.
 2. Fork, branch, and run `make lint test synth_report` locally.
 3. Open a pull request with a description of what changed and why.
-4. CI runs the full test suite plus `synth_report`; both must be green.
+4. There is no CI; include the output of your local `make lint test` run in the pull request.
 
 ## Citation
 

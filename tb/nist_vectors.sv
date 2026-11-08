@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 // NIST FIPS-202 SHA-3 / SHAKE test vectors as a SystemVerilog package for
 // non-Verilator simulators.
 //

@@ -89,6 +89,8 @@ Typical full sequence:
 
 ## Timing
 
+The cycle counts below are design intent; not independently confirmed.
+
 - **Per Keccak-f[1600] permutation**: 25 cycles (24 round cycles + 1 done pulse cycle).
 - **Per rate block**: ~25 + ~3 cycles of FSM overhead (absorb / permute boundary handling). Streaming throughput is gated by the master's beat rate; the core absorbs at one beat per cycle until the rate buffer fills.
 - **Tail latency**: a final partial-block message takes ~25 cycles (padder) + 25 cycles (closing permutation) + 1 cycle (digest_valid_o pulse).
@@ -123,4 +125,4 @@ Single clock domain. `clk_i` clocks every flop in the design. If your system is 
 
 ## Synthesis attributes
 
-The core uses no vendor-specific attributes. It synthesizes cleanly with Yosys (`synth_ice40`, `synth_ecp5`, `synth_xilinx`) and with Vivado (default flow).
+The core uses no vendor-specific attributes. It is intended to synthesize with Yosys (`synth_ice40`, `synth_ecp5`, `synth_xilinx`) and with Vivado (default flow); not independently confirmed.

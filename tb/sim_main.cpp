@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 // Verilator C++ harness for keccak_top.
 //
 // Drives FIPS-202 SHA-3 / SHAKE NIST test vectors plus Ethereum Keccak-256

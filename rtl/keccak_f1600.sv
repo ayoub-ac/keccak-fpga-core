@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 // Keccak-f[1600] iterative permutation (24 rounds, one round per cycle).
 //
 // Reference: NIST FIPS-202 §3.4 (specification of Keccak-p[1600, 24]) and

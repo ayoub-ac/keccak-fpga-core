@@ -2,6 +2,8 @@
 
 This IP core is dual-licensed.
 
+SPDX-License-Identifier: `GPL-3.0-or-later OR LicenseRef-Commercial`
+
 ## GPL-3.0-or-later (open-source use)
 
 Copyright (C) 2026 Ayoub Achour
@@ -12,7 +14,7 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 
 You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-The full GPL-3.0 text is canonical and lives at the FSF link above. A copy is available for convenience: <https://www.gnu.org/licenses/gpl-3.0.txt>.
+The full GPL-3.0 text is in [COPYING](COPYING). The canonical text is at <https://www.gnu.org/licenses/gpl-3.0.txt>.
 
 **What this means in practice**: if you use this RTL in a project, the project itself (including any FPGA bitstream produced from it) must also be released under GPL-3.0-or-later. The GPL is "viral" — your downstream users must receive the same rights you received, including the right to the complete corresponding source.
 
@@ -26,14 +28,13 @@ The commercial license:
 
 - removes the GPL viral requirement,
 - grants you (and your company) the right to integrate the core into closed-source products,
-- gives you a clear, written grant you can show to your customers and to a due-diligence auditor,
-- includes a 1-year fix window on bugs and clarifications.
+- gives you a clear, written grant you can show to your customers and to a due-diligence auditor.
 
-To purchase, contact the maintainer email listed in the README.
+Commercial licenses are available on request: open a GitHub issue titled 'Commercial license request'. Do not post confidential details in the issue. Any commercial license is provided as is, without warranty, support or maintenance. This core is unverified (see README).
 
 ## Trademarks
 
-"SHA-3", "SHA3-256", "SHA3-512", "SHAKE128", "SHAKE256", and "Keccak" are referenced as standardised algorithm names (NIST FIPS-202 plus the original Keccak submission). No trademark claim is made on the algorithms. You may freely state that this core implements FIPS-202 / Keccak in your product documentation.
+"SHA-3", "SHA3-256", "SHA3-512", "SHAKE128", "SHAKE256", and "Keccak" are referenced as standardised algorithm names (NIST FIPS-202 plus the original Keccak submission). No trademark claim is made on the algorithms. You may state that this core implements the FIPS-202 / Keccak algorithms (not validated) in your product documentation.
 
 ## Patents
 

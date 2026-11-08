@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 // Keccak / SHA-3 sponge padder (helper module).
 //
 // Reference: NIST FIPS-202 §5.1 (the multi-rate padding rule pad10*1) and

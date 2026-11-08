@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 // Keccak / SHA-3 streaming top with mode select.
 //
 // Reference: NIST FIPS-202, "SHA-3 Standard", §4 (sponge construction),

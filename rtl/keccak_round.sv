@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 // Keccak-f[1600] single-round combinational logic.
 //
 // Reference: NIST FIPS-202, "SHA-3 Standard: Permutation-Based Hash and
