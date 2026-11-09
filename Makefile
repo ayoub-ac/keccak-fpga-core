@@ -26,7 +26,7 @@ TB_TOP   := tb/keccak_top_tb.sv
 TB_AUX   := tb/keccak_assertions.sv tb/keccak_cov.sv
 TB_CPP   := tb/sim_main.cpp
 
-VFLAGS := -Wall -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL
+VFLAGS := -Wall -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL -Wno-UNOPTPUBLIC
 
 .PHONY: lint sim test synth synth_report vhdl-test clean regen_vectors
 

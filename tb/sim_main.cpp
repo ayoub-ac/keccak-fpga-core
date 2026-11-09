@@ -63,7 +63,9 @@ static void reset(Vkeccak_top_tb* dut) {
 // digest_o is 512 bits, exposed as uint32_t[16] with word[0] = bits [31:0].
 // Bytes are placed MSB-first: the first squeezed byte lives at bit
 // [511:504] of digest_o, which is word[15] bits [31:24].
-static std::string digest_to_hex(const uint32_t* port_words, int n_bytes) {
+// Wide ports are VlWide<16> on Verilator 5 and plain word arrays on older releases.
+template <typename Port>
+static std::string digest_to_hex(const Port& port_words, int n_bytes) {
     char buf[129];
     if (n_bytes > 64) n_bytes = 64;
     for (int byte = 0; byte < n_bytes; byte++) {

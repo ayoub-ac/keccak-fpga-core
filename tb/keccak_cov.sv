@@ -57,7 +57,9 @@ module keccak_cov (
   logic       hash_in_flight_q;   // a start was seen and digest not yet emitted
   logic       prev_done_q;        // for back-to-back detection
 
-  always_ff @(posedge clk_i) begin
+  // Plain always (not always_ff): the flags also get their start value in
+  // the initial block below and are sticky across resets.
+  always @(posedge clk_i) begin
     if (!rst_ni) begin
       if (hash_in_flight_q) c_reset_mid_hash <= 1'b1;
       perm_count_q     <= 4'd0;
