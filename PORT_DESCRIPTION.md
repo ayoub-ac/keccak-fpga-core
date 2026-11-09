@@ -27,7 +27,7 @@ module keccak_top (
 | Signal           | Dir | Width | Description |
 |------------------|-----|-------|-------------|
 | `clk_i`          | in  | 1     | System clock. All flops sample on the rising edge. |
-| `rst_ni`         | in  | 1     | Synchronous, active-low reset. Hold low for >= 4 clocks before first command. |
+| `rst_ni`         | in  | 1     | Synchronous, active-low reset. One clock edge with `rst_ni` low is enough. |
 | `mode_i`         | in  | 3     | Variant select (latched at `start_i`). 0 = SHA3-256, 1 = SHA3-512, 2 = SHAKE128, 3 = SHAKE256, 4 = Ethereum Keccak-256. |
 | `start_i`        | in  | 1     | Pulse for one cycle to begin a new hash. The sponge state is cleared and `mode_i` is latched. |
 | `data_i`         | in  | 64    | Streaming message data, 8 bytes per beat. Byte 0 of the message is at bits `[7:0]`, byte 7 at `[63:56]` (LSB-first within each 64-bit lane, matching FIPS-202 §B.1). |
@@ -79,7 +79,7 @@ digest_o       -   D   D   -      (D is the digest; stable from the cycle
 
 Typical full sequence:
 
-1. Reset the core (`rst_ni = 0` for >= 4 clocks, then `rst_ni = 1`).
+1. Reset the core (`rst_ni = 0` for at least one rising clock edge, then `rst_ni = 1`).
 2. Drive `mode_i` and pulse `start_i` for one cycle.
 3. Wait for `ready_o`.
 4. Stream the message in 8-byte beats. On each beat: drive `data_i`, `valid_i = 1`, `last_i = 0` for non-final beats.
@@ -89,18 +89,18 @@ Typical full sequence:
 
 ## Timing
 
-The cycle counts below are design intent; not independently confirmed.
+Measured in simulation (`tb/tb_vectors.sv`) with one beat offered every cycle:
 
-- **Per Keccak-f[1600] permutation**: 25 cycles (24 round cycles + 1 done pulse cycle).
-- **Per rate block**: ~25 + ~3 cycles of FSM overhead (absorb / permute boundary handling). Streaming throughput is gated by the master's beat rate; the core absorbs at one beat per cycle until the rate buffer fills.
-- **Tail latency**: a final partial-block message takes ~25 cycles (padder) + 25 cycles (closing permutation) + 1 cycle (digest_valid_o pulse).
-- For an N-byte message at a steady streaming rate, total cycles are dominated by ceil(N / rate) * 25 plus ~3 cycles of overhead per permutation.
+- **Absorb**: one 8-byte beat per cycle while `ready_o` is high. A full rate block (rate / 8 beats) is followed by about 25 cycles of permutation with `ready_o` low; absorbing and permuting do not overlap. A SHA3-256 block (136 bytes, 17 beats) therefore takes 42 cycles.
+- **Digest**: `digest_valid_o` rises 30 cycles after the last beat is accepted, or 56 cycles when the message length is an exact multiple of the rate (the last data block and the padding-only block are permuted one after the other).
+- **Examples, from the `start_i` cycle to `digest_valid_o`**: empty message 30 cycles; SHA3-256 135 bytes 46, 136 bytes 72, 1360 bytes 450; SHA3-512 720 bytes 370; SHAKE128 1680 bytes 490.
+- The cycle count depends only on the mode and the message length: messages of equal length with different contents take the same number of cycles (checked on 124 pairs).
 
 ## Reset
 
 - `rst_ni` is **synchronous**, **active-low**.
-- Drive `rst_ni = 0` for at least four `clk_i` rising edges before the first command.
-- During reset all output signals are low, all internal state is cleared. The previously running hash is wiped — issue a fresh `start_i` on the next command.
+- One rising `clk_i` edge with `rst_ni = 0` is enough, also in the middle of a hash.
+- From that edge on, `ready_o`, `busy_o` and `digest_valid_o` are low and the hash in flight is abandoned; `valid_i` and `start_i` are ignored while `rst_ni` is low. Issue a fresh `start_i` for the next hash. The regression resets the core at random beats for 1 to 4 cycles and checks the next digest.
 
 ## Endianness clarification
 
@@ -113,7 +113,7 @@ The cycle counts below are design intent; not independently confirmed.
 |----------|--------------------|------------:|----------------:|------------:|------------:|
 | 0        | SHA3-256           | 1088        | 512             | 256         | `0x06`      |
 | 1        | SHA3-512           | 576         | 1024            | 512         | `0x06`      |
-| 2        | SHAKE128           | 1344        | 256             | 256 (fixed) | `0x1f`      |
+| 2        | SHAKE128           | 1344        | 256             | 512 (fixed) | `0x1f`      |
 | 3        | SHAKE256           | 1088        | 512             | 512 (fixed) | `0x1f`      |
 | 4        | Ethereum Keccak-256| 1088        | 512             | 256         | `0x01`      |
 
@@ -125,4 +125,4 @@ Single clock domain. `clk_i` clocks every flop in the design. If your system is 
 
 ## Synthesis attributes
 
-The core uses no vendor-specific attributes. It is intended to synthesize with Yosys (`synth_ice40`, `synth_ecp5`, `synth_xilinx`) and with Vivado (default flow); not independently confirmed.
+The core uses no vendor-specific attributes. Yosys (`synth_ice40`, `synth_ecp5`, `synth_xilinx`), Quartus Prime Lite and Vivado synthesise it; the numbers are in [`RESOURCE_ESTIMATES.md`](RESOURCE_ESTIMATES.md). Before v1.1.0 Quartus stopped at elaboration with error 10232 (an out-of-range index in `keccak_top.sv`).

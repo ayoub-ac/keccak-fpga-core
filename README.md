@@ -1,17 +1,27 @@
 # keccak-fpga-core
 
+[![CI](https://github.com/ayoub-ac/keccak-fpga-core/actions/workflows/ci.yml/badge.svg)](https://github.com/ayoub-ac/keccak-fpga-core/actions/workflows/ci.yml)
 [![License: GPL-3.0-or-later or commercial](https://img.shields.io/badge/license-GPL--3.0%20%7C%20commercial-blue.svg)](LICENSE.md)
 [![Ethereum Keccak-256](https://img.shields.io/badge/Ethereum-Keccak--256-blueviolet.svg)](#ethereum-keccak-256-vs-nist-sha3-256-the-footgun)
 
-> **Status: experimental and unverified.** This core was written with AI assistance and has not been independently verified in simulation regressions, formal proofs or hardware. Claims in this repository about standards compliance, test results, timing and resource use are unverified. It has not been validated under NIST CAVP/CMVP and has not been evaluated for side-channel or fault-injection resistance. Do not use it in production or security-sensitive designs without your own verification. No support or maintenance is provided.
+> **Status: verified in simulation only.** v1.1.0 matches Python `hashlib`
+> (SHA3-256, SHA3-512, SHAKE128, SHAKE256) and `pycryptodome` (Ethereum
+> Keccak-256) on 371 messages, including the lengths just below, at and above one,
+> two and three rate blocks, with idle cycles, resets mid-hash and random `mode_i`
+> changes, plus the original NIST and Ethereum directed tests. It has been
+> compiled with Quartus Prime Lite for Cyclone V and with Vivado for
+> Artix-7, but not run on FPGA hardware, validated under NIST CAVP/CMVP, or
+> evaluated for side-channel or fault-injection resistance. It was written
+> with AI assistance. No support or maintenance is provided. See
+> [Verification](#verification) for what was and was not checked.
 
-A small, synthesisable Keccak / SHA-3 family IP core in SystemVerilog. One round per cycle, 25-cycle iterative Keccak-f[1600] permutation, single clock domain. Five variants behind a 3-bit mode select: **SHA3-256**, **SHA3-512**, **SHAKE128**, **SHAKE256**, **Ethereum Keccak-256**. Targets iCE40, ECP5, Xilinx 7-series, Cyclone V, and Tang Nano 9K.
+A synthesisable Keccak / SHA-3 family IP core in SystemVerilog. One round per cycle, iterative Keccak-f[1600] permutation, single clock domain. Five variants behind a 3-bit mode select: **SHA3-256**, **SHA3-512**, **SHAKE128**, **SHAKE256**, **Ethereum Keccak-256**. It needs about 13k LUT6 on Artix-7 or 8.9k ALM on Cyclone V and runs at about 122 MHz on both; it does not fit an iCE40, a Tang Nano 9K or an ECP5-25 (see [Measured numbers](#measured-numbers)).
 
-The core implements the FIPS-202 algorithm (not validated) plus the original Keccak submission. NIST FIPS-202 / NIST CAVP test vectors and a 125-message cross-check across all five modes against Python `hashlib.sha3_*` / `hashlib.shake_*` and `pycryptodome.Crypto.Hash.keccak` are included in a Verilator testbench; results not independently confirmed. No FPGA hardware is required to run the test suite.
+The core implements the FIPS-202 algorithm plus the original Keccak submission, checked in simulation against independent software implementations; it is not NIST-validated. No FPGA hardware is required to run the test suite.
 
 ## Why this exists
 
-Most freely available Keccak / SHA-3 cores either ship only SHA3-256, only Keccak-256, are pipelined-only (huge LUT cost), are pre-FIPS-202 (and therefore use the original Keccak padding that is **incompatible** with SHA3 — see below), only verified against `"abc"`, or licensed under unclear terms. This core is small, dual-licensed cleanly (GPL for OSS use, commercial license for closed-source), shipped with five mode variants behind a single streaming top, NIST + Ethereum + 125 random cross-validation vectors in the testbench, SystemVerilog assertions, functional coverage, and a synthesis-comparison report across multiple toolchains.
+Most freely available Keccak / SHA-3 cores either ship only SHA3-256, only Keccak-256, are pipelined-only (huge LUT cost), are pre-FIPS-202 (and therefore use the original Keccak padding that is **incompatible** with SHA3 — see below), only verified against `"abc"`, or licensed under unclear terms. This core is dual-licensed cleanly (GPL for OSS use, commercial license for closed-source), shipped with five mode variants behind a single streaming top, NIST + Ethereum + 125 random cross-validation vectors in the testbench, SystemVerilog assertions, functional coverage, and a synthesis-comparison report across multiple toolchains.
 
 ## Ethereum Keccak-256 vs NIST SHA3-256: the footgun
 
@@ -35,7 +45,7 @@ Ethereum Keccak-256("")  = c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad
 
 Why does Ethereum use the older variant? Because Ethereum was specified before FIPS-202 was finalised. The Ethereum yellow paper points at the original Keccak submission, which used the simpler `pad10*1` rule with no domain byte (effectively `0x01` for byte-oriented inputs). FIPS-202 added the `0x06` separator to give SHA3 its own domain. By the time FIPS-202 shipped, the Ethereum genesis block was on chain and the variant could not be changed.
 
-**This core is intended to support both.** Drive `mode_i = 0` for SHA3-256, `mode_i = 4` for Ethereum Keccak-256. The Ethereum mode is intended to match Ethereum `keccak256()`; not independently confirmed. The directed test suite includes an explicit cross-check that the two produce different digests (Test 3), intended to catch a regression that swaps the domain byte; results not independently confirmed.
+**This core supports both.** Drive `mode_i = 0` for SHA3-256, `mode_i = 4` for Ethereum Keccak-256. The Ethereum mode matches `pycryptodome`'s Keccak-256, the function Ethereum calls `keccak256()`, on every test message. The directed test suite also checks that the two produce different digests (Test 3).
 
 If your application is the Ethereum world (smart contracts, EVM, EIP-191, EIP-712, Solidity `keccak256()`, web3.js / ethers.js / web3.py): **`mode_i = 4`**. If your application is the FIPS world (TLS 1.3 with SHA3, post-quantum schemes like SLH-DSA / Dilithium / Falcon, NIST SP 800-185 derived functions): **`mode_i = 0`**.
 
@@ -45,10 +55,11 @@ If your application is the Ethereum world (smart contracts, EVM, EIP-191, EIP-71
 git clone https://github.com/ayoub-ac/keccak-fpga-core.git
 cd keccak-fpga-core
 make lint test            # Verilator lint + run NIST + Ethereum + random tests
-make synth_report         # SYNTH_REPORT.md across iCE40/ECP5/Xilinx/Vivado/Quartus
+make test-vectors         # 371 messages against hashlib / pycryptodome (needs pycryptodome)
+make synth_report         # SYNTH_REPORT.md: Yosys iCE40/ECP5/Xilinx (Vivado/Quartus if on PATH)
 ```
 
-Requires Verilator 5.0+ for simulation. Yosys 0.30+ for the open synth flow. Python 3 with `pycryptodome` installed if you want to regenerate the random vectors via `make regen_vectors`.
+Requires Verilator 5.0+ for simulation. Yosys 0.30+ for the open synth flow. Python 3 with `pycryptodome` for `make test-vectors` and `make regen_vectors`.
 
 ## Architecture
 
@@ -73,7 +84,7 @@ Requires Verilator 5.0+ for simulation. Yosys 0.30+ for the open synth flow. Pyt
     FSM)
 ```
 
-FSM: `IDLE -> ABSORB <-> PERMUTE -> PAD_LAUNCH -> PAD_WAIT -> PERMUTE_END -> DONE -> IDLE`. The Keccak-f[1600] permutation is designed to run 24 rounds in 24 cycles plus a 1-cycle `done` pulse; per rate-block the streaming top is expected to add ~3 cycles of FSM overhead (design intent, unverified).
+FSM: `IDLE -> ABSORB <-> PERMUTE -> PAD_LAUNCH -> PAD_WAIT -> PERMUTE_END -> DONE -> IDLE`. Measured in simulation: each full rate block takes rate / 8 beats plus about 25 cycles of permutation, with no overlap between absorbing and permuting, and `digest_valid_o` rises 30 cycles after the last beat (56 when the length is a multiple of the rate). See [`PORT_DESCRIPTION.md`](PORT_DESCRIPTION.md#timing).
 
 ## Port table
 
@@ -95,17 +106,28 @@ FSM: `IDLE -> ABSORB <-> PERMUTE -> PAD_LAUNCH -> PAD_WAIT -> PERMUTE_END -> DON
 
 See [`PORT_DESCRIPTION.md`](PORT_DESCRIPTION.md) for the full streaming protocol with timing diagrams.
 
-## Headline numbers
+## Measured numbers
 
-Unverified estimates attributed to `make synth_report` (Yosys 0.33, full streaming top). They have not been independently reproduced:
+Yosys 0.70 (OSS CAD Suite 2026-11-01, flattened, before place and route),
+Quartus Prime Lite 25.1 and Vivado 2025.2 (out of context, place and route,
+register to register, 5 ns constraint, no I/O timing):
 
-| Target           | LUT      | FF      | BRAM | Latency / hash                  | Throughput @ Fmax     |
-|------------------|---------:|--------:|-----:|---------------------------------|-----------------------|
-| iCE40 UP5K       |   18,204 |  5,922  | 0    | ~25 cycles per Keccak-f[1600]   | varies by mode + Fmax |
-| ECP5 LFE5UM-25   |   25,475 |  5,922  | 0    | ~25 cycles per Keccak-f[1600]   | varies                |
-| Xilinx 7-series  |   10,541 |  2,959  | 0    | ~25 cycles per Keccak-f[1600]   | varies                |
+| Flow | Target | LUT | FF | Fmax |
+|---|---|---|---|---|
+| Yosys `synth_ice40` | iCE40 | 18252 LUT4 | 5922 | - |
+| Yosys `synth_ecp5` | ECP5 | 25647 LUT4 + 9730 PFUMX/L6MUX21 | 5922 | - |
+| Yosys `synth_xilinx` | Xilinx 7-series | 15600 LUT6 + 599 MUXF7/8 | 5922 | - |
+| Quartus Prime Lite | Cyclone V 5CSEMA5F31C6 | 8882 ALM (28 %) | 5919 | 123.09 MHz (85 °C), 125.25 MHz (0 °C) |
+| Vivado | Artix-7 xc7a35t-1 | 13149 LUT6 (63 %) | 5946 | 122.16 MHz |
 
-Keccak-f[1600] has a 1600-bit state (25 lanes x 64 bits). The FF count is dominated by the sponge state plus the rate-block buffer (RATE_MAX = 168 bytes = 1344 bits, sized for SHAKE128). See [`RESOURCE_ESTIMATES.md`](RESOURCE_ESTIMATES.md) for the full breakdown and tactics for shrinking it (drop unused modes, smaller RATE_MAX, externalise the rate buffer to BRAM).
+- It does not fit an iCE40 UP5K or HX8K (5280 / 7680 LUT4), a Tang Nano 9K
+  (8640 LUT4) or an ECP5 LFE5U-25F (24288 LUT4).
+- The flip-flops are the 1600-bit state, three 1344-bit rate-size registers
+  and about 290 bits of control. Two of the rate-size registers could be
+  merged away; [`RESOURCE_ESTIMATES.md`](RESOURCE_ESTIMATES.md) has the
+  breakdown.
+- At 122 MHz, SHA3-256 absorbs about 395 MB/s on long messages (136 bytes
+  every 42 cycles; computed from the cycle count, not measured on hardware).
 
 ## Build & test
 
@@ -114,15 +136,35 @@ You need [Verilator](https://verilator.org/) 5.0 or newer plus Python 3.
 ```bash
 make lint           # static check the RTL (round + f1600 + padder + top)
 make test           # build + run NIST + Ethereum + random + edge-case tests
+make test-vectors   # 371 messages against hashlib / pycryptodome
 make synth_report   # cross-toolchain synthesis report
 make regen_vectors  # regenerate tb/random_vectors.h from hashlib + pycryptodome
 ```
 
-The harness is written to end a passing run with `+PASS all tests passed` and exit 0. No passing run has been independently confirmed.
+`make test` ends a passing run with `+PASS all tests passed` and exits 0; `make test-vectors` prints `VECTOR TESTS PASSED`.
 
 ## Verification
 
-Three techniques are wired into the testbench. Test vectors are included; results not independently confirmed.
+Everything below runs in CI on every push (`.github/workflows/ci.yml`).
+
+| Check | What it covers | Result (v1.1.0) |
+|---|---|---|
+| `make lint` | Verilator `-Wall` on the RTL and the testbench | clean |
+| `make test` | NIST example vectors for the four FIPS-202 functions, 5 Ethereum Keccak-256 vectors, the SHA3-256 vs Keccak-256 distinction, 125 random messages cross-checked with `hashlib` / `pycryptodome`; 6 SVA properties every cycle; 10/10 coverage bins | pass |
+| `make test-vectors` | 371 messages from `hashlib` / `pycryptodome`: per mode 0..17 bytes, the lengths r-9, r-8, r-2, r-1, r, r+1 and r+8 for one, two and three rate blocks r, and 40 random lengths. Run without and with 30 % idle cycles on `valid_i`; random `mode_i` after `start_i`; every fifth message first aborted by a 1 to 4 cycle reset (135 resets); 124 equal-length pairs with the same latency | 0 errors |
+| `make vhdl-test` | GHDL analysis of the VHDL wrapper | pass |
+| `make synth_report` | regenerated and compared with the committed `SYNTH_REPORT.md` | identical |
+
+Quartus Prime Lite 25.1 (Cyclone V) and Vivado 2025.2 (Artix-7) compiled
+the core out of context (place, route and timing, no hardware); see
+[`RESOURCE_ESTIMATES.md`](RESOURCE_ESTIMATES.md). These runs are not in CI.
+
+Not verified: FPGA hardware; place and route on ECP5; timing inside a full
+design with real I/O; formal proofs (none exist); NIST CAVP/CMVP; power, EM
+and fault attacks; mixed-language simulation of the VHDL wrapper; SHAKE
+output longer than 64 bytes (the core squeezes one block).
+
+The sections below describe the directed tests in `make test`.
 
 ### Directed tests (NIST FIPS-202)
 
@@ -146,15 +188,15 @@ Three techniques are wired into the testbench. Test vectors are included; result
 
 ### SHA3-256 vs Ethereum-Keccak-256 distinction
 
-A dedicated test checks that on the empty input, SHA3-256 produces `a7ffc6f8...` and Ethereum Keccak-256 produces `c5d24601...`, and that the two are different. It is intended to catch regressions in the domain-byte logic; results not independently confirmed.
+A dedicated test checks that on the empty input, SHA3-256 produces `a7ffc6f8...` and Ethereum Keccak-256 produces `c5d24601...`, and that the two are different.
 
 ### Random cross-validation (125 messages)
 
-25 random messages per mode times 5 modes. Lengths drawn from `{0, 1, 32, 71, 72, 135, 136, 137, 167, 168, 169}` plus 14 random lengths in [170, 2000], chosen to land on every rate boundary (SHA3-512 rate = 72, SHA3-256 / SHAKE256 / Keccak-256 rate = 136, SHAKE128 rate = 168). Expected digests are generated with `hashlib.sha3_*`, `hashlib.shake_*`, and `pycryptodome.Crypto.Hash.keccak`; results not independently confirmed.
+25 random messages per mode times 5 modes. Lengths drawn from `{0, 1, 32, 71, 72, 135, 136, 137, 167, 168, 169}` plus 14 random lengths in [170, 2000], chosen to land on every rate boundary (SHA3-512 rate = 72, SHA3-256 / SHAKE256 / Keccak-256 rate = 136, SHAKE128 rate = 168). Expected digests are generated with `hashlib.sha3_*`, `hashlib.shake_*`, and `pycryptodome.Crypto.Hash.keccak`.
 
 ### SystemVerilog assertions
 
-`tb/keccak_assertions.sv` is intended to check protocol invariants on every cycle of every test:
+`tb/keccak_assertions.sv` checks protocol invariants on every cycle of `make test`:
 
 - Each Keccak-f[1600] permutation completes in exactly 25 cycles
 - `digest_o` is stable while `digest_valid_o` is asserted
@@ -163,11 +205,11 @@ A dedicated test checks that on the empty input, SHA3-256 produces `a7ffc6f8...`
 - `pad_block_valid` is a single-cycle pulse (padder emits exactly one block per launch)
 - Rate-buffer fill counter never exceeds the per-mode rate
 
-The assertions are intended to compile with both Verilator 5.x (`--assert`) and Vivado xsim (not independently confirmed). They are stripped on synthesis flows via `` `ifndef SYNTHESIS ``.
+The assertions run under Verilator 5 (`--assert`); Vivado xsim was not tried. They are stripped on synthesis flows via `` `ifndef SYNTHESIS ``.
 
 ### Functional coverage
 
-`tb/keccak_cov.sv` collects ten bins. The simulator prints a coverage summary at end-of-test in this format (illustrative output; results not independently confirmed):
+`tb/keccak_cov.sv` collects ten bins. `make test` prints:
 
 ```
 ---- Functional coverage ----
@@ -176,11 +218,11 @@ The assertions are intended to compile with both Verilator 5.x (`--assert`) and 
 Coverage: 10/10 bins (100.0%)
 ```
 
-The harness is intended to fail a run that drops below 100%.
+The harness fails a run that drops below 100 %.
 
 ### Synthesis comparison report
 
-`make synth_report` runs every available toolchain on the same RTL and emits [`SYNTH_REPORT.md`](SYNTH_REPORT.md) with a side-by-side LUT/FF/BRAM table. Yosys (`synth_ice40` / `synth_ecp5` / `synth_xilinx`) is mandatory; Vivado and Quartus are detected automatically and skipped with a notice when not on `$PATH`.
+`make synth_report` runs every available toolchain on the same RTL and emits [`SYNTH_REPORT.md`](SYNTH_REPORT.md) with a side-by-side LUT/FF/BRAM table. Yosys (`synth_ice40` / `synth_ecp5` / `synth_xilinx`) is mandatory; Vivado and Quartus are detected automatically and skipped with a notice when not on `$PATH`. The place-and-route runs use `scripts/quartus_compile.tcl` and `scripts/vivado_compile.tcl` instead.
 
 ## Variants
 
@@ -189,7 +231,7 @@ The harness is intended to fail a run that drops below 100%.
 | `rtl/keccak_round.sv`                | Combinational theta / rho / pi / chi / iota single-round update                             |
 | `rtl/keccak_f1600.sv`                | 24-round iterative Keccak-f[1600] permutation                                                |
 | `rtl/keccak_padder.sv`               | FIPS-202 `pad10*1` + domain-byte selector (SHA3 / SHAKE / Ethereum)                          |
-| `rtl/keccak_top.sv`                  | Streaming top with 3-bit mode select; intended to support all 5 variants behind a single port surface |
+| `rtl/keccak_top.sv`                  | Streaming top with 3-bit mode select; all 5 variants behind a single port surface |
 | `vhdl_wrapper/keccak_top_vhdl.vhd`   | VHDL-2008 entity wrapping the SV streaming top for VHDL-only designs                         |
 
 ## License
@@ -197,7 +239,7 @@ The harness is intended to fail a run that drops below 100%.
 Dual-licensed:
 
 - **GPL-3.0-or-later** for open-source projects. If your product links this RTL or its compiled bitstream, your project must also be GPL-3.0+.
-- **Commercial license** for closed-source products. Commercial licenses are available on request: open a GitHub issue titled 'Commercial license request'. Do not post confidential details in the issue. Any commercial license is provided as is, without warranty, support or maintenance. This core is unverified (see README). See [`LICENSE.md`](LICENSE.md) for the license text.
+- **Commercial license** for closed-source products. Commercial licenses are available on request: open a GitHub issue titled 'Commercial license request'. Do not post confidential details in the issue. Any commercial license is provided as is, without warranty, support or maintenance. This core is verified in simulation only (see README). See [`LICENSE.md`](LICENSE.md) for the license text.
 
 If unsure which applies, read `LICENSE.md` or open an issue.
 
@@ -211,6 +253,7 @@ rtl/                     RTL sources
   keccak_top.sv            streaming top with 3-bit mode select
 tb/                      testbench
   sim_main.cpp             C++ harness, NIST + Ethereum + 125 random vectors
+  tb_vectors.sv            reference-vector regression (make test-vectors)
   keccak_top_tb.sv         DUT wrapper + assertion + coverage instantiation
   keccak_assertions.sv     SVA properties
   keccak_cov.sv            functional coverage collector
@@ -219,8 +262,10 @@ tb/                      testbench
   random_vectors.h         generated cross-validation vectors (hashlib + pycryptodome)
   gen_random_vectors.py    regenerates random_vectors.h
 vhdl_wrapper/            VHDL-2008 wrapper for mixed-language designs
-scripts/                 helper scripts (synth_report.sh, vhdl_cosim.sh)
-Makefile                 build / lint / sim / synth / synth_report / vhdl-test
+scripts/                 synth_report.sh, vhdl_cosim.sh, gen_vectors.py,
+                         quartus_compile.tcl, vivado_compile.tcl
+.github/                 CI workflow
+Makefile                 build / lint / sim / test-vectors / synth / synth_report / vhdl-test
 ```
 
 ## Contributing
@@ -228,15 +273,15 @@ Makefile                 build / lint / sim / synth / synth_report / vhdl-test
 Bug reports and patches welcome. Process:
 
 1. File an issue first for non-trivial changes.
-2. Fork, branch, and run `make lint test synth_report` locally.
+2. Fork, branch, and run `make lint test test-vectors synth_report` locally.
 3. Open a pull request with a description of what changed and why.
-4. There is no CI; include the output of your local `make lint test` run in the pull request.
+4. CI runs the same checks on the pull request.
 
 ## Citation
 
 ```bibtex
 @misc{keccak-fpga-core,
-  title  = {{keccak-fpga-core}: a small dual-licensed Keccak / SHA-3 family IP core in SystemVerilog with Ethereum Keccak-256 support},
+  title  = {{keccak-fpga-core}: a dual-licensed Keccak / SHA-3 family IP core in SystemVerilog with Ethereum Keccak-256 support},
   author = {Achour, Ayoub},
   year   = {2026},
   howpublished = {\url{https://github.com/ayoub-ac/keccak-fpga-core}}
