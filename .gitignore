@@ -8,6 +8,9 @@ synth_report/
 synth_*.log
 # Test artefacts
 test.log
+# GHDL outputs (make vhdl-test)
+*.o
+*.cf
 # Waveforms
 *.vcd
 *.fst
