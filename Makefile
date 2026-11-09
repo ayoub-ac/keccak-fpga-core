@@ -4,6 +4,7 @@
 #   make lint           verilator --lint-only on RTL (round + f1600 + padder + top)
 #   make sim            build the streaming-top simulator
 #   make test           build + run sim, check for "+PASS"
+#   make test-vectors   all 5 modes against hashlib / pycryptodome vectors (needs pycryptodome)
 #   make synth          Yosys: ice40 + ecp5 + xilinx generic for keccak_top
 #   make synth_report   run all available toolchains and emit SYNTH_REPORT.md
 #   make vhdl-test      GHDL+Verilator co-sim of the VHDL wrapper (if installed)
@@ -11,6 +12,7 @@
 #   make regen_vectors  regenerate tb/random_vectors.h from hashlib + pycryptodome
 
 VERILATOR ?= verilator
+PYTHON    ?= python3
 YOSYS     ?= yosys
 GHDL      ?= ghdl
 VIVADO    ?= vivado
@@ -28,7 +30,7 @@ TB_CPP   := tb/sim_main.cpp
 
 VFLAGS := -Wall -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL -Wno-UNOPTPUBLIC
 
-.PHONY: lint sim test synth synth_report vhdl-test clean regen_vectors
+.PHONY: lint sim test test-vectors synth synth_report vhdl-test clean regen_vectors
 
 lint:
 	$(VERILATOR) --lint-only $(VFLAGS) --top-module keccak_top_tb \
@@ -46,6 +48,22 @@ obj_dir/Vkeccak_top_tb: $(RTL_CORE) $(TB_TOP) $(TB_AUX) $(TB_CPP) \
 test: sim
 	./obj_dir/Vkeccak_top_tb | tee test.log
 	@grep -q "+PASS" test.log && echo "TESTS PASSED" || (echo "TESTS FAILED" && exit 1)
+
+# ---------- Reference-vector regression ---------------------------------------
+# scripts/gen_vectors.py writes the expected digests with hashlib and
+# pycryptodome; tb/tb_vectors.sv streams every message without idle cycles
+# and again with 30 % random idle cycles on valid_i.
+build/vectors.txt: scripts/gen_vectors.py
+	@mkdir -p build
+	$(PYTHON) scripts/gen_vectors.py $@ 1
+
+test-vectors: build/vectors.txt $(RTL_CORE) tb/tb_vectors.sv
+	$(VERILATOR) --binary --timing -Wall -Wno-UNUSEDSIGNAL --top-module tb_vectors \
+	    -Mdir build/obj_vectors -o sim $(RTL_CORE) tb/tb_vectors.sv > build/vectors_build.log
+	@set -e; for g in 0 30; do \
+	    ./build/obj_vectors/sim +vec=build/vectors.txt +gap=$$g | tee build/vectors_gap$$g.log | grep -E '^(FAIL|RESULT)'; \
+	    grep -q ' bad=0 ' build/vectors_gap$$g.log || { echo "VECTOR TESTS FAILED"; exit 1; }; \
+	done; echo "VECTOR TESTS PASSED"
 
 # ---------- Open synthesis (Yosys) ------------------------------------------
 synth:
@@ -67,7 +85,7 @@ vhdl-test:
 	@bash scripts/vhdl_cosim.sh
 
 clean:
-	rm -rf obj_dir \
+	rm -rf obj_dir build \
 	    test.log \
 	    synth_ice40.log synth_ecp5.log synth_xilinx.log \
 	    synth_report/

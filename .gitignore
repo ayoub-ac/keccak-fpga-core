@@ -1,5 +1,6 @@
 # Verilator build outputs
 obj_dir/
+build/
 
 # Synthesis report intermediate files (the SYNTH_REPORT.md is committed; the
 # raw per-tool logs are not)
