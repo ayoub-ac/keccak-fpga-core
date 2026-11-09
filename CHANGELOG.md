@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 (unreleased)
+## 1.1.0 (2026-11-09)
 
 A check of the initial release against an independent reference found the
 digests correct in all five modes and the defects below.
