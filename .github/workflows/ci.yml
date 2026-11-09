@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # OSS CAD Suite build used for the numbers in README.md and SYNTH_REPORT.md.
+  OSS_CAD_SUITE_DATE: "2026-11-01"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    name: lint, test, vhdl-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/oss-cad-suite
+        with:
+          date: ${{ env.OSS_CAD_SUITE_DATE }}
+      - name: make lint
+        run: source "$OSS_CAD_SUITE/environment" && make lint
+      - name: make test
+        run: source "$OSS_CAD_SUITE/environment" && make test
+      - name: make vhdl-test
+        run: source "$OSS_CAD_SUITE/environment" && make vhdl-test
+
+  vectors:
+    name: test-vectors
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/oss-cad-suite
+        with:
+          date: ${{ env.OSS_CAD_SUITE_DATE }}
+      - name: Install pycryptodome
+        run: |
+          source "$OSS_CAD_SUITE/environment"
+          python3 -m pip install pycryptodome==3.23.0
+      - name: make test-vectors
+        run: source "$OSS_CAD_SUITE/environment" && make test-vectors
+
+  synth:
+    name: synth_report reproduces SYNTH_REPORT.md
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/oss-cad-suite
+        with:
+          date: ${{ env.OSS_CAD_SUITE_DATE }}
+      - name: make synth_report
+        run: source "$OSS_CAD_SUITE/environment" && make synth_report
+      - name: Compare with the committed report
+        run: git diff --exit-code SYNTH_REPORT.md
