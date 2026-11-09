@@ -227,8 +227,10 @@ module keccak_top (
     // FIPS-202 §B.1 byte ordering: byte j of the buffer is at bits
     // [8*j +: 8]; lane li takes bytes [8*li .. 8*li+7], i.e. bits
     // [64*li +: 64], which matches the packed sponge layout exactly.
+    // blk holds RATE_MAX / 8 = 21 lanes, so the loop stops there; a bound
+    // of 25 indexes past blk, which Quartus rejects at elaboration.
     absorb_data = {1600{1'b0}};
-    for (int li = 0; li < 25; li++) begin
+    for (int li = 0; li < RATE_MAX / 8; li++) begin
       if (li < lanes) absorb_data[64*li +: 64] = blk[64*li +: 64];
     end
     absorb_block_packed = st_in_packed ^ absorb_data;
