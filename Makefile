@@ -70,7 +70,7 @@ clean:
 	rm -rf obj_dir \
 	    test.log \
 	    synth_ice40.log synth_ecp5.log synth_xilinx.log \
-	    synth_report/ SYNTH_REPORT.md
+	    synth_report/
 
 regen_vectors:
 	python3 tb/gen_random_vectors.py > tb/random_vectors.h
